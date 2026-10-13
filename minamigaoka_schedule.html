@@ -1597,47 +1597,7 @@ function openDutyAssign(key) {
   }
   html += `</div>`;
 
-  // 班を割当 / 変更
-  html += `<div class="sheet-section"><div class="sheet-label"><span>👥 班を割当 / 変更</span></div>`;
-  state.teams.forEach(t => {
-    const isCurrent = current && current.teamId === t.id;
-    const memberPreview = t.members.length ? t.members.map(m => escapeHTML(m.name)).join('、') : 'メンバー未登録';
-    html += `<button class="btn full" style="background:${t.color};margin-bottom:6px;opacity:${isCurrent?0.5:1};flex-direction:column;align-items:flex-start;padding:10px 12px" 
-      onclick="assignDutyTeam('${key}','${t.id}')" ${isCurrent?'disabled':''}>
-      <span style="font-weight:800">${escapeHTML(t.name)} ${isCurrent?'(現在)':''}</span>
-      <span style="font-size:10px;font-weight:500;opacity:.9;text-align:left;line-height:1.3">${memberPreview}</span>
-    </button>`;
-  });
-  html += `</div>`;
-
-  // 班同士の入替え (基準日から±30日以内の試合日)
   if (current) {
-    const baseTime = date.getTime();
-    const RANGE_MS = 30 * 24 * 60 * 60 * 1000;
-    const candidates = Object.keys(state.duty)
-      .filter(ok => ok !== key)
-      .filter(ok => hasMatchOrLeague(ok))
-      .map(ok => ({ ok, date: parseKey(ok) }))
-      .filter(c => Math.abs(c.date.getTime() - baseTime) <= RANGE_MS)
-      .sort((a, b) => a.date - b.date);
-
-    if (candidates.length) {
-      let teamSwapHtml = '';
-      candidates.forEach(({ ok, date: other }) => {
-        const od = state.duty[ok];
-        const ot = getTeam(od.teamId);
-        const dow = other.getDay();
-        const dowCls = dow === 6 ? 'sat' : dow === 0 ? 'sun' : '';
-        teamSwapHtml += `<button class="swap-card ${dowCls}" onclick="doDutySwap('${key}','${ok}')">
-          <span class="d">${other.getMonth()+1}/${other.getDate()}</span>
-          <span class="dow">(${DOW[dow]})</span>
-          <span class="team-badge-inline" style="background:${ot?ot.color:'#999'}">${ot?escapeHTML(ot.name):'?'}</span>
-        </button>`;
-      });
-      html += `<div class="sheet-section"><div class="sheet-label"><span>🔁 他の試合日と班同士で入替え</span><span style="font-size:10px;color:#888;font-weight:500">前後1ヶ月以内</span></div>
-        <div class="swap-card-scroll">${teamSwapHtml}</div></div>`;
-    }
-
     // 既存の個別交換の表示
     const overrides = state.dutyMemberOverrides[key] || [];
     if (overrides.length) {
@@ -1660,7 +1620,7 @@ function openDutyAssign(key) {
       html += `</div>`;
     }
 
-    // 他の試合日と双方向で人を交換
+    // ① 他の試合日と双方向で人を交換
     const eff = getEffectiveDutyMembers(key);
     if (eff.length) {
       html += `<div class="sheet-section"><div class="sheet-label"><span>👤 他の試合日と人を入替え</span><span style="font-size:10px;color:#888;font-weight:500">前後1ヶ月以内</span></div>`;
@@ -1742,6 +1702,48 @@ function openDutyAssign(key) {
       html += `</div>`;
     }
 
+    // ② 班同士の入替え (基準日から±30日以内の試合日)
+    const baseTime = date.getTime();
+    const RANGE_MS = 30 * 24 * 60 * 60 * 1000;
+    const candidates = Object.keys(state.duty)
+      .filter(ok => ok !== key)
+      .filter(ok => hasMatchOrLeague(ok))
+      .map(ok => ({ ok, date: parseKey(ok) }))
+      .filter(c => Math.abs(c.date.getTime() - baseTime) <= RANGE_MS)
+      .sort((a, b) => a.date - b.date);
+
+    if (candidates.length) {
+      let teamSwapHtml = '';
+      candidates.forEach(({ ok, date: other }) => {
+        const od = state.duty[ok];
+        const ot = getTeam(od.teamId);
+        const dow = other.getDay();
+        const dowCls = dow === 6 ? 'sat' : dow === 0 ? 'sun' : '';
+        teamSwapHtml += `<button class="swap-card ${dowCls}" onclick="doDutySwap('${key}','${ok}')">
+          <span class="d">${other.getMonth()+1}/${other.getDate()}</span>
+          <span class="dow">(${DOW[dow]})</span>
+          <span class="team-badge-inline" style="background:${ot?ot.color:'#999'}">${ot?escapeHTML(ot.name):'?'}</span>
+        </button>`;
+      });
+      html += `<div class="sheet-section"><div class="sheet-label"><span>🔁 他の試合日と班同士で入替え</span><span style="font-size:10px;color:#888;font-weight:500">前後1ヶ月以内</span></div>
+        <div class="swap-card-scroll">${teamSwapHtml}</div></div>`;
+    }
+  }
+
+  // ③ 班を割当 / 変更
+  html += `<div class="sheet-section"><div class="sheet-label"><span>👥 班を割当 / 変更</span></div>`;
+  state.teams.forEach(t => {
+    const isCurrent = current && current.teamId === t.id;
+    const memberPreview = t.members.length ? t.members.map(m => escapeHTML(m.name)).join('、') : 'メンバー未登録';
+    html += `<button class="btn full" style="background:${t.color};margin-bottom:6px;opacity:${isCurrent?0.5:1};flex-direction:column;align-items:flex-start;padding:10px 12px" 
+      onclick="assignDutyTeam('${key}','${t.id}')" ${isCurrent?'disabled':''}>
+      <span style="font-weight:800">${escapeHTML(t.name)} ${isCurrent?'(現在)':''}</span>
+      <span style="font-size:10px;font-weight:500;opacity:.9;text-align:left;line-height:1.3">${memberPreview}</span>
+    </button>`;
+  });
+  html += `</div>`;
+
+  if (current) {
     html += `<div class="sheet-section">
       <button class="btn danger full" onclick="clearDuty('${key}')">割当を解除</button>
     </div>`;
@@ -1753,6 +1755,22 @@ function openDutyAssign(key) {
 }
 
 async function assignDutyTeam(key, teamId) {
+  const date = parseKey(key);
+  const label = `${date.getMonth()+1}月${date.getDate()}日`;
+  const newTeam = getTeam(teamId);
+  const newName = newTeam ? newTeam.name : '不明';
+  const cur = state.duty[key];
+  let msg;
+  if (cur) {
+    const curTeam = getTeam(cur.teamId);
+    const curName = curTeam ? curTeam.name : '不明';
+    const hasOv = (state.dutyMemberOverrides[key] || []).length > 0;
+    msg = `${label}のお当番を ${curName} から ${newName} に変更します。よろしいですか?` +
+      (hasOv ? '\n\n※この日の個別交換は解除されます。' : '');
+  } else {
+    msg = `${label}のお当番を ${newName} に割り当てます。よろしいですか?`;
+  }
+  if (!confirm(msg)) return;
   // 班を変更した場合、その日のオーバーライドはクリア
   if (state.duty[key] && state.duty[key].teamId !== teamId) {
     delete state.dutyMemberOverrides[key];
@@ -1768,6 +1786,14 @@ async function doDutySwap(keyA, keyB) {
   const a = state.duty[keyA];
   const b = state.duty[keyB];
   if (!a || !b) return;
+  const dA = parseKey(keyA), dB = parseKey(keyB);
+  const lA = `${dA.getMonth()+1}/${dA.getDate()}(${DOW[dA.getDay()]})`;
+  const lB = `${dB.getMonth()+1}/${dB.getDate()}(${DOW[dB.getDay()]})`;
+  const tA = getTeam(a.teamId), tB = getTeam(b.teamId);
+  const nA = tA ? tA.name : '不明', nB = tB ? tB.name : '不明';
+  const hasOv = (state.dutyMemberOverrides[keyA] || []).length > 0 || (state.dutyMemberOverrides[keyB] || []).length > 0;
+  if (!confirm(`${lA}と${lB}のお当番を班同士で入替えます。よろしいですか?\n\n${lA}: ${nA} → ${nB}\n${lB}: ${nB} → ${nA}` +
+    (hasOv ? '\n\n※両日の個別交換は解除されます。' : ''))) return;
   state.duty[keyA] = { teamId: b.teamId };
   state.duty[keyB] = { teamId: a.teamId };
   // 入替え時はオーバーライドもクリア
