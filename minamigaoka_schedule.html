@@ -194,6 +194,14 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .event-item .e-actions { display: flex; gap: 4px; align-items: center; }
 .event-item .e-del { color: #c00; font-size: 18px; padding: 4px 6px; font-weight: 300; line-height: 1; }
 .event-item .e-edit { color: var(--orange-dark); font-size: 14px; padding: 4px 6px; }
+.gcal-link { display: inline-block; margin-top: 6px; font-size: 11px; font-weight: 700; color: #1a73e8; text-decoration: none; background: #e8f0fe; border-radius: 6px; padding: 4px 8px; }
+.gcal-link:active { background: #d2e3fc; }
+.ics-checks { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+.ics-checks label { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; background: var(--cream); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+.ics-radio { display: flex; gap: 6px; }
+.ics-radio label { flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px; font-size: 13px; font-weight: 700; background: var(--cream); border: 1px solid var(--line); border-radius: 8px; padding: 8px 6px; }
+.ics-help { font-size: 11px; color: #666; line-height: 1.6; background: #f7f7f7; border-radius: 8px; padding: 8px 10px; }
+.ics-help b { color: #333; }
 
 .btn { background: var(--orange); color: white; padding: 10px 16px; border-radius: 10px; font-weight: 700; font-size: 13px; display: inline-flex; align-items: center; justify-content: center; gap: 4px; transition: transform .1s; }
 .btn:active { transform: scale(.96); }
@@ -805,6 +813,55 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
       <button class="btn full secondary" onclick="fillSaturdayPractices()" style="margin-bottom:8px">土曜にデフォルトの練習(9:00〜12:00)を一括追加</button>
       <button class="btn full secondary" onclick="autoRotateDuty()">お当番を班ローテーションで自動割当</button>
     </div>
+    <div class="sheet-section">
+      <div class="sheet-label"><span>📅 カレンダーに取り込む</span></div>
+      <button class="btn full secondary" onclick="openIcsSheet()">予定をカレンダー用ファイル(.ics)で保存</button>
+    </div>
+  </div>
+</div>
+
+<div id="icsSheet" class="bottom-sheet" onclick="if(event.target===this)closeSheet('icsSheet')">
+  <div class="sheet-body">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">📅 カレンダーに取り込む</div>
+    <div class="sheet-section">
+      <div class="sheet-label"><span>📆 期間</span></div>
+      <div class="ics-radio">
+        <label><input type="radio" name="icsRange" value="month" checked> <span id="icsMonthLabel">この月</span></label>
+        <label><input type="radio" name="icsRange" value="future"> 今日以降すべて</label>
+      </div>
+    </div>
+    <div class="sheet-section">
+      <div class="sheet-label"><span>📝 含める予定</span></div>
+      <div class="ics-checks">
+        <label><input type="checkbox" class="ics-type" value="practice" checked> 🏃 練習</label>
+        <label><input type="checkbox" class="ics-type" value="match" checked> 🏆 練習試合</label>
+        <label><input type="checkbox" class="ics-type" value="league" checked> ⭐ 大会試合</label>
+        <label><input type="checkbox" class="ics-type" value="other" checked> 📌 その他</label>
+        <label><input type="checkbox" class="ics-type" value="duty" checked> 🔔 お当番</label>
+        <label><input type="checkbox" class="ics-type" value="key" checked> 🔑 鍵当番</label>
+      </div>
+    </div>
+    <div class="sheet-section">
+      <div class="sheet-label"><span>👤 お当番・鍵当番の絞り込み</span></div>
+      <div class="field" style="margin-bottom:0">
+        <select id="icsMember"></select>
+      </div>
+      <div style="font-size:11px;color:#888;margin-top:4px">名前を選ぶと、その人が担当の日のお当番・鍵当番だけを含めます(個別交換も反映)。</div>
+    </div>
+    <div class="sheet-section">
+      <div class="ics-help">
+        <b>Googleカレンダーへの取り込み方</b><br>
+        ① 下のボタンで .ics ファイルを保存<br>
+        ② パソコンのブラウザで Googleカレンダーを開き、⚙️設定 →「インポート/エクスポート」→ ファイルを選んで「インポート」<br>
+        ※ スマホのGoogleカレンダーアプリからは取り込めません。iPhoneではファイルを開くと標準のカレンダーに追加できます。<br>
+        ※ 同じ予定を再度取り込んでも重複しにくくなっていますが、アプリで削除した予定はカレンダーからは消えません。
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn secondary" style="white-space:nowrap" onclick="closeSheet('icsSheet')">閉じる</button>
+      <button class="btn full" onclick="downloadIcs()">⬇️ .ics を保存</button>
+    </div>
   </div>
 </div>
 
@@ -1148,6 +1205,7 @@ function renderDayEvents() {
           <div class="e-meta">${escapeHTML(ev.time || '')} ${ev.place ? '・'+escapeHTML(ev.place) : ''}</div>
           ${team ? `<div class="e-meta">☆${escapeHTML(team.name)}</div>` : ''}
           ${ev.memo ? `<div class="e-meta">📝 ${escapeHTML(ev.memo)}</div>` : ''}
+          <a class="gcal-link" href="${escapeHTML(buildGcalUrl(eventToCal(selectedDate, ev)))}" target="_blank" rel="noopener">📅 Googleカレンダーに追加</a>
         </div>
         <div class="e-actions">
           <button class="e-edit" onclick="event.stopPropagation();editEvent('${ev.id}')">✏️</button>
@@ -1165,6 +1223,7 @@ function renderDayEvents() {
       <div class="event-item key-item">
         <div class="e-body">
           <div class="name-medium">${mem ? escapeHTML(mem.name) : '未割当'}</div>
+          ${mem ? `<a class="gcal-link" href="${escapeHTML(buildGcalUrl(keyDutyToCal(selectedDate)))}" target="_blank" rel="noopener">📅 Googleカレンダーに追加</a>` : ''}
         </div>
         <button class="swap-btn" onclick="openKeyAssign('${selectedDate}')">${mem ? '🔄 変更' : '+ 割当'}</button>
       </div>
@@ -1180,6 +1239,7 @@ function renderDayEvents() {
         <div class="e-body">
           <div class="name-medium" style="color:${team?team.color:'#999'}">${team ? escapeHTML(team.name) : '未割当'}</div>
           ${effHtml ? `<div style="font-size:13px;font-weight:700;color:#333;margin-top:4px">${effHtml}</div>` : ''}
+          ${team ? `<a class="gcal-link" href="${escapeHTML(buildGcalUrl(dutyToCal(selectedDate)))}" target="_blank" rel="noopener">📅 Googleカレンダーに追加</a>` : ''}
         </div>
         <button class="swap-btn" onclick="openDutyAssign('${selectedDate}')">${team ? '🔄 交換' : '+ 割当'}</button>
       </div>
@@ -2089,6 +2149,219 @@ async function removeMember(tIdx, mIdx) {
   await saveData();
   renderTeams();
   render();
+}
+
+// ============ CALENDAR EXPORT (Googleカレンダー / .ics) ============
+const DEFAULT_PLACE = '南小体育館';
+const CAL_TYPE_LABEL = { practice: '練習', match: '練習試合', league: '大会試合', other: 'その他' };
+const ICS_PREF_KEY = 'minamigaoka_ics_pref';
+
+function plainDutyMembers(key) {
+  return getEffectiveDutyMembers(key).map(m => {
+    const ot = getTeam(m.fromTeamId);
+    return m.name + (m.isOverride && ot ? `(${ot.name})` : '');
+  }).join('、');
+}
+
+// カレンダー用の共通形式: {uid, key, allDay, start:'HH:MM', end:'HH:MM', title, place, details}
+function eventToCal(key, ev) {
+  const label = CAL_TYPE_LABEL[ev.type] || '';
+  let title = ev.title || label;
+  if ((ev.type === 'match' || ev.type === 'league') && title !== label) title = `${label}：${title}`;
+  title = `🏀 ${title}`;
+  const t = parseTimeRange(ev.time);
+  const details = [];
+  if (ev.memo) details.push(ev.memo);
+  if (ev.type === 'match' || ev.type === 'league') {
+    const duty = state.duty[key];
+    const team = duty ? getTeam(duty.teamId) : null;
+    if (team) {
+      const mem = plainDutyMembers(key);
+      details.push(`お当番: ${team.name}${mem ? `(${mem})` : ''}`);
+    }
+  }
+  const kd = state.keyDuty[key];
+  const kdMem = kd ? getMember(kd.memberId) : null;
+  if (kdMem && ev.type !== 'other') details.push(`鍵当番: ${kdMem.name}`);
+  details.push('南ヶ丘MBC活動計画表より');
+  return {
+    uid: `ev-${ev.id}@minamigaoka-schedule`, key,
+    allDay: !t.start, start: t.start, end: t.end,
+    title, place: ev.place || (ev.type === 'practice' ? DEFAULT_PLACE : ''), details: details.join('\n')
+  };
+}
+
+function dutyToCal(key) {
+  const duty = state.duty[key];
+  const team = duty ? getTeam(duty.teamId) : null;
+  if (!team) return null;
+  const mem = plainDutyMembers(key);
+  const games = (state.events[key] || []).filter(e => e.type === 'match' || e.type === 'league')
+    .map(e => e.title || CAL_TYPE_LABEL[e.type]).join('、');
+  const details = [];
+  if (mem) details.push(`担当: ${mem}`);
+  if (games) details.push(`試合: ${games}`);
+  details.push('南ヶ丘MBC活動計画表より');
+  return { uid: `duty-${key}@minamigaoka-schedule`, key, allDay: true,
+    title: `🔔 お当番：${team.name}`, place: '', details: details.join('\n') };
+}
+
+function keyDutyToCal(key) {
+  const kd = state.keyDuty[key];
+  const mem = kd ? getMember(kd.memberId) : null;
+  if (!mem) return null;
+  return { uid: `key-${key}@minamigaoka-schedule`, key, allDay: true,
+    title: `🔑 鍵当番：${mem.name}`, place: '', details: '南ヶ丘MBC活動計画表より' };
+}
+
+// 'YYYY-MM-DD' + 'HH:MM' → 'YYYYMMDDTHHMM00' (end未入力は開始+1時間)
+function calDateParts(item) {
+  const d = parseKey(item.key);
+  const ymd = x => `${x.getFullYear()}${String(x.getMonth()+1).padStart(2,'0')}${String(x.getDate()).padStart(2,'0')}`;
+  if (item.allDay) {
+    const next = new Date(d); next.setDate(next.getDate() + 1);
+    return { start: ymd(d), end: ymd(next) };
+  }
+  const toDT = (hm, base) => {
+    const [h, m] = hm.split(':').map(Number);
+    const x = new Date(base); x.setHours(h, m, 0, 0);
+    return x;
+  };
+  const s = toDT(item.start, d);
+  let e = item.end ? toDT(item.end, d) : new Date(s.getTime() + 60*60*1000);
+  if (e <= s) e = new Date(s.getTime() + 60*60*1000);
+  const fmt = x => `${ymd(x)}T${String(x.getHours()).padStart(2,'0')}${String(x.getMinutes()).padStart(2,'0')}00`;
+  return { start: fmt(s), end: fmt(e) };
+}
+
+function buildGcalUrl(item) {
+  if (!item) return '#';
+  const dp = calDateParts(item);
+  const params = new URLSearchParams({ action: 'TEMPLATE', text: item.title, dates: `${dp.start}/${dp.end}` });
+  if (!item.allDay) params.set('ctz', 'Asia/Tokyo');
+  if (item.place) params.set('location', item.place);
+  if (item.details) params.set('details', item.details);
+  return 'https://calendar.google.com/calendar/render?' + params.toString();
+}
+
+function icsEscape(s) {
+  return String(s || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
+}
+// RFC5545: 1行75オクテットで折り返し(UTF-8の文字途中で切らない)
+function icsFold(line) {
+  const enc = new TextEncoder();
+  const out = [];
+  let cur = '', bytes = 0, limit = 75;
+  for (const ch of line) {
+    const b = enc.encode(ch).length;
+    if (bytes + b > limit) { out.push(cur); cur = ' '; bytes = 1; limit = 75; }
+    cur += ch; bytes += b;
+  }
+  out.push(cur);
+  return out.join('\r\n');
+}
+
+function buildIcs(items) {
+  const now = new Date();
+  const stamp = now.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  const lines = [
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Minamigaoka MBC//Schedule//JA',
+    'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:南ヶ丘MBC', 'X-WR-TIMEZONE:Asia/Tokyo',
+    'BEGIN:VTIMEZONE', 'TZID:Asia/Tokyo', 'BEGIN:STANDARD', 'DTSTART:19700101T000000',
+    'TZOFFSETFROM:+0900', 'TZOFFSETTO:+0900', 'TZNAME:JST', 'END:STANDARD', 'END:VTIMEZONE'
+  ];
+  items.forEach(item => {
+    const dp = calDateParts(item);
+    lines.push('BEGIN:VEVENT', `UID:${item.uid}`, `DTSTAMP:${stamp}`);
+    if (item.allDay) {
+      lines.push(`DTSTART;VALUE=DATE:${dp.start}`, `DTEND;VALUE=DATE:${dp.end}`, 'TRANSP:TRANSPARENT');
+    } else {
+      lines.push(`DTSTART;TZID=Asia/Tokyo:${dp.start}`, `DTEND;TZID=Asia/Tokyo:${dp.end}`);
+    }
+    lines.push(`SUMMARY:${icsEscape(item.title)}`);
+    if (item.place) lines.push(`LOCATION:${icsEscape(item.place)}`);
+    if (item.details) lines.push(`DESCRIPTION:${icsEscape(item.details)}`);
+    lines.push('END:VEVENT');
+  });
+  lines.push('END:VCALENDAR');
+  return lines.map(icsFold).join('\r\n') + '\r\n';
+}
+
+function loadIcsPref() {
+  try { return JSON.parse(localStorage.getItem(ICS_PREF_KEY) || '{}') || {}; } catch(e) { return {}; }
+}
+function saveIcsPref(pref) {
+  try { localStorage.setItem(ICS_PREF_KEY, JSON.stringify(pref)); } catch(e) {}
+}
+
+function openIcsSheet() {
+  closeSheet('settingsSheet');
+  const pref = loadIcsPref();
+  document.getElementById('icsMonthLabel').textContent = `${viewMonth.getMonth()+1}月のみ`;
+  const sel = document.getElementById('icsMember');
+  let opts = '<option value="">全員分(絞り込まない)</option>';
+  state.teams.forEach(t => {
+    if (!t.members.length) return;
+    opts += `<optgroup label="${escapeHTML(t.name)}">` +
+      t.members.map(m => `<option value="${escapeHTML(m.id)}">${escapeHTML(m.name)}</option>`).join('') + '</optgroup>';
+  });
+  sel.innerHTML = opts;
+  sel.value = (pref.memberId && getMember(pref.memberId)) ? pref.memberId : '';
+  if (Array.isArray(pref.types)) {
+    document.querySelectorAll('.ics-type').forEach(cb => { cb.checked = pref.types.includes(cb.value); });
+  }
+  document.getElementById('icsSheet').classList.add('show');
+}
+
+function collectCalItems({ range, types, memberId }) {
+  const today = dateKey(new Date());
+  const y = viewMonth.getFullYear(), m = viewMonth.getMonth();
+  const inRange = key => {
+    if (range === 'future') return key >= today;
+    const d = parseKey(key);
+    return d.getFullYear() === y && d.getMonth() === m;
+  };
+  const keys = new Set([...Object.keys(state.events), ...Object.keys(state.duty), ...Object.keys(state.keyDuty)]);
+  const items = [];
+  [...keys].filter(inRange).sort().forEach(key => {
+    (state.events[key] || []).forEach(ev => {
+      if (types.includes(ev.type)) items.push(eventToCal(key, ev));
+    });
+    if (types.includes('duty') && state.duty[key] && hasMatchOrLeague(key)) {
+      if (!memberId || getEffectiveDutyMembers(key).some(x => x.id === memberId)) {
+        const it = dutyToCal(key);
+        if (it) items.push(it);
+      }
+    }
+    if (types.includes('key') && state.keyDuty[key] && canHaveKeyDuty(key)) {
+      if (!memberId || state.keyDuty[key].memberId === memberId) {
+        const it = keyDutyToCal(key);
+        if (it) items.push(it);
+      }
+    }
+  });
+  return items;
+}
+
+function downloadIcs() {
+  const range = document.querySelector('input[name="icsRange"]:checked').value;
+  const types = [...document.querySelectorAll('.ics-type:checked')].map(cb => cb.value);
+  const memberId = document.getElementById('icsMember').value;
+  if (!types.length) { toast('含める予定を選んでください'); return; }
+  saveIcsPref({ types, memberId });
+  const items = collectCalItems({ range, types, memberId });
+  if (!items.length) { toast('対象の予定がありません'); return; }
+  const blob = new Blob([buildIcs(items)], { type: 'text/calendar;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  const suffix = range === 'future' ? `from-${dateKey(new Date())}` : `${viewMonth.getFullYear()}-${String(viewMonth.getMonth()+1).padStart(2,'0')}`;
+  link.download = `minamigaoka_${suffix}.ics`;
+  link.href = url;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  toast(`${items.length}件の予定を保存しました`);
 }
 
 // ============ EXPORT ============
