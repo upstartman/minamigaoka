@@ -815,7 +815,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
     </div>
     <div class="sheet-section">
       <div class="sheet-label"><span>📅 カレンダーに取り込む</span></div>
-      <button class="btn full secondary" onclick="openIcsSheet()">予定をカレンダー用ファイル(.ics)で保存</button>
+      <button class="btn full secondary" onclick="openIcsSheet()">Googleカレンダー等に予定を取り込む</button>
     </div>
   </div>
 </div>
@@ -824,7 +824,14 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   <div class="sheet-body">
     <div class="sheet-handle"></div>
     <div class="sheet-title">📅 カレンダーに取り込む</div>
-    <div class="sheet-section">
+    <div class="sheet-section" id="icsModeSection">
+      <div class="sheet-label"><span>🧭 取り込み方</span></div>
+      <div class="ics-radio">
+        <label><input type="radio" name="icsMode" value="sub" onchange="updateIcsMode()"> 🔗 購読(自動更新)</label>
+        <label><input type="radio" name="icsMode" value="file" onchange="updateIcsMode()"> ⬇️ ファイル保存</label>
+      </div>
+    </div>
+    <div class="sheet-section ics-file-only">
       <div class="sheet-label"><span>📆 期間</span></div>
       <div class="ics-radio">
         <label><input type="radio" name="icsRange" value="month" checked> <span id="icsMonthLabel">この月</span></label>
@@ -848,8 +855,25 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
         <select id="icsMember"></select>
       </div>
       <div style="font-size:11px;color:#888;margin-top:4px">名前を選ぶと、その人が担当の日のお当番・鍵当番だけを含めます(個別交換も反映)。</div>
+      <label class="ics-sub-only" style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;margin-top:8px">
+        <input type="checkbox" id="icsNames"> お当番・鍵当番のメンバー名も含める
+      </label>
     </div>
-    <div class="sheet-section">
+    <div class="sheet-section ics-sub-only">
+      <div class="ics-help">
+        <b>購読のしかた(一度登録すれば自動で更新)</b><br>
+        ・<b>Googleカレンダー</b>: 下の「Googleカレンダーで購読」を押して「追加」。パソコンのブラウザがおすすめです(スマホのアプリからは追加できません。パソコンで追加すれば、スマホのアプリにも表示されます)。<br>
+        ・<b>iPhone</b>: 「iPhoneで購読」を押して「照会」。<br>
+        ※ 反映はカレンダー側の更新タイミング次第で、数時間〜1日ほど遅れます。当日の急な変更はアプリで確認してください。<br>
+        ※ 購読URLを知っている人は誰でも内容を見られます。名前を含めた場合は、URLを部外に広めないでください。
+      </div>
+    </div>
+    <div class="btn-row ics-sub-only" style="flex-wrap:wrap">
+      <button class="btn full" onclick="openFeedInGoogle()">📅 Googleカレンダーで購読</button>
+      <button class="btn secondary" style="white-space:nowrap" onclick="openFeedWebcal()">🍎 iPhoneで購読</button>
+      <button class="btn secondary" style="white-space:nowrap" onclick="copyFeedUrl()">🔗 URLをコピー</button>
+    </div>
+    <div class="sheet-section ics-file-only">
       <div class="ics-help">
         <b>Googleカレンダーへの取り込み方</b><br>
         ① 下のボタンで .ics ファイルを保存<br>
@@ -858,7 +882,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
         ※ 同じ予定を再度取り込んでも重複しにくくなっていますが、アプリで削除した予定はカレンダーからは消えません。
       </div>
     </div>
-    <div class="btn-row">
+    <div class="btn-row ics-file-only">
       <button class="btn secondary" style="white-space:nowrap" onclick="closeSheet('icsSheet')">閉じる</button>
       <button class="btn full" onclick="downloadIcs()">⬇️ .ics を保存</button>
     </div>
@@ -2155,6 +2179,8 @@ async function removeMember(tIdx, mIdx) {
 const DEFAULT_PLACE = '南小体育館';
 const CAL_TYPE_LABEL = { practice: '練習', match: '練習試合', league: '大会試合', other: 'その他' };
 const ICS_PREF_KEY = 'minamigaoka_ics_pref';
+// 購読フィード(Google Apps Script ウェブアプリ)のURL。gas/README.md の手順でデプロイして設定する。空なら購読は非表示
+const CAL_FEED_URL = '';
 
 function plainDutyMembers(key) {
   return getEffectiveDutyMembers(key).map(m => {
@@ -2310,7 +2336,61 @@ function openIcsSheet() {
   if (Array.isArray(pref.types)) {
     document.querySelectorAll('.ics-type').forEach(cb => { cb.checked = pref.types.includes(cb.value); });
   }
+  document.getElementById('icsNames').checked = !!pref.names;
+  document.getElementById('icsModeSection').style.display = CAL_FEED_URL ? '' : 'none';
+  const mode = CAL_FEED_URL ? (pref.mode === 'file' ? 'file' : 'sub') : 'file';
+  document.querySelector(`input[name="icsMode"][value="${mode}"]`).checked = true;
+  updateIcsMode();
   document.getElementById('icsSheet').classList.add('show');
+}
+
+function updateIcsMode() {
+  const mode = document.querySelector('input[name="icsMode"]:checked').value;
+  document.querySelectorAll('#icsSheet .ics-sub-only').forEach(el => { el.style.display = mode === 'sub' ? '' : 'none'; });
+  document.querySelectorAll('#icsSheet .ics-file-only').forEach(el => { el.style.display = mode === 'file' ? '' : 'none'; });
+}
+
+function readIcsForm() {
+  return {
+    mode: document.querySelector('input[name="icsMode"]:checked').value,
+    types: [...document.querySelectorAll('.ics-type:checked')].map(cb => cb.value),
+    memberId: document.getElementById('icsMember').value,
+    names: document.getElementById('icsNames').checked
+  };
+}
+
+function buildFeedUrl() {
+  const f = readIcsForm();
+  if (!f.types.length) { toast('含める予定を選んでください'); return null; }
+  saveIcsPref(f);
+  const params = new URLSearchParams();
+  if (f.types.length < document.querySelectorAll('.ics-type').length) params.set('types', f.types.join(','));
+  if (f.memberId) params.set('member', f.memberId);
+  if (f.names) params.set('names', '1');
+  const q = params.toString();
+  return CAL_FEED_URL + (q ? (CAL_FEED_URL.includes('?') ? '&' : '?') + q : '');
+}
+function toWebcal(url) { return url.replace(/^https?:\/\//, 'webcal://'); }
+
+function openFeedInGoogle() {
+  const url = buildFeedUrl();
+  if (!url) return;
+  window.open('https://calendar.google.com/calendar/r?cid=' + encodeURIComponent(toWebcal(url)), '_blank', 'noopener');
+}
+function openFeedWebcal() {
+  const url = buildFeedUrl();
+  if (!url) return;
+  location.href = toWebcal(url);
+}
+async function copyFeedUrl() {
+  const url = buildFeedUrl();
+  if (!url) return;
+  try {
+    await navigator.clipboard.writeText(url);
+    toast('購読URLをコピーしました');
+  } catch(e) {
+    prompt('購読URL(長押しでコピー)', url);
+  }
 }
 
 function collectCalItems({ range, types, memberId }) {
@@ -2345,10 +2425,10 @@ function collectCalItems({ range, types, memberId }) {
 
 function downloadIcs() {
   const range = document.querySelector('input[name="icsRange"]:checked').value;
-  const types = [...document.querySelectorAll('.ics-type:checked')].map(cb => cb.value);
-  const memberId = document.getElementById('icsMember').value;
+  const form = readIcsForm();
+  const { types, memberId } = form;
   if (!types.length) { toast('含める予定を選んでください'); return; }
-  saveIcsPref({ types, memberId });
+  saveIcsPref(form);
   const items = collectCalItems({ range, types, memberId });
   if (!items.length) { toast('対象の予定がありません'); return; }
   const blob = new Blob([buildIcs(items)], { type: 'text/calendar;charset=utf-8' });
